@@ -7,34 +7,37 @@ use App\Models\Comment;
 use App\Models\Culinary;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class ApiController extends Controller
 {
     public function Culinary_getall()
     {
         try {
-            $res = Cache::remember('culinary', now()->addMinutes(60), function () {
-                $data = Culinary::all();
-                foreach ($data as $key => $val) {
-                    $rat = Comment::where("Culinary_id", "=", $val->id)->get()->avg("rating");
-                    $com = Comment::where("Culinary_id", "=", $val->id)->get();
-                    if (isset($rat)) {
-                        $val->rating = $rat;
-                    } else {
-                        $val->rating = 0;
-                    }
-                    $val->comment = $com;
-                }
-                return $data;
-            });
+            
+            $res = Cache::get('culinary');
             if ($res) {
                 return ApiFormatter::Success("Success", 200, $res);
             }
             else{
-                return ApiFormatter::Fail("Data Not found", 404);
+                $res = Cache::remember('culinary', now()->addMinutes(60), function () {
+                    $data = Culinary::all();
+                    foreach ($data as $key => $val) {
+                        $rat = Comment::where("Culinary_id", "=", $val->id)->get()->avg("rating");
+                        $com = Comment::where("Culinary_id", "=", $val->id)->get();
+                        if (isset($rat)) {
+                            $val->rating = $rat;
+                        } else {
+                            $val->rating = 0;
+                        }
+                        $val->comment = $com;
+                    }
+                    return $data;
+                });
+                return ApiFormatter::Success("Success added to redis", 200, $res);
             }
         } catch (\Throwable $th) {
-            return ApiFormatter::Fail($th, 500);
+            return $th;
         }
     }
     public function Culinary_get_id($id)
